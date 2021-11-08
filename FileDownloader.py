@@ -15,12 +15,30 @@ def get_content_length(response):
 			content_length = int(line.split(' ')[1])
 			return content_length
 
+
+def get_content_range(response):
+	response_lines = response.split("\r\n")
+	for line in response_lines:
+		if line.split(' ')[0] == "Content-Range:":
+			content_range = line.split(' ')[2]
+			lower_range, upper_range = content_range.split('-')
+			upper_range = upper_range.split('/')[0]
+			return int(lower_range), int(upper_range)
+
+
 def get_directory(url):
 	return url[url.find('/'):]
 
+
+def get_object(response):
+	for i in range(len(response) - 4):
+		if response[i:i+4] == "\r\n\r\n":
+			return response[i+4:]
+			
+
 index_file = sys.argv[1]
 range_exists = False
-range = None
+ranges = None
 LOWER_ENDPOINT = 0
 UPPER_ENDPOINT = 1
 
@@ -29,9 +47,10 @@ print("URL of the index file: {}".format(index_file))
 
 if len(sys.argv) == 3:
 	range_exists = True
-	range = sys.argv[2].split("-")
-	print("Lower endpoint = {}".format(range[0]))
-	print("Upper endpoint = {}".format(range[1]))
+	ranges = sys.argv[2].split("-")
+	ranges = [int(i) for i in ranges]
+	print("Lower endpoint = {}".format(ranges[0]))
+	print("Upper endpoint = {}".format(ranges[1]))
 elif len(sys.argv) != 2:
 	print("Incorrect # of arguments")
 	sys.exit()
@@ -89,34 +108,47 @@ for idx, url in enumerate(file_urls, 1):
 	filename = url.split("/")[-1]
 	file_socket.connect((host_url, 80))
 
-	directory = url[url.find('/'):]
+	directory = get_directory(url)
 
 	request = "HEAD {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 	file_socket.sendall(request.encode())  
 
 	response = file_socket.recv(16384).decode()
 	stat_code_phrase = get_status_code(response)
+	content_length = get_content_length(response)
 
 	if stat_code_phrase != "200 OK":
 		print("{}. {} is not found".format(idx, url))
 		continue
 
 	if range_exists:
-		content_length = get_content_length(response)
-
-		if content_length < range[LOWER_ENDPOINT]:
+		if content_length < ranges[LOWER_ENDPOINT]:
 			print("{}. {} (size = {}) is not downloaded".format(idx, url, content_length))
 			continue
 
-		directory = get_directory(url)
-		request = "GET {} HTTP/1.1\r\nHost: {}\r\nRange: bytes={}-{}\r\n\r\n".format(directory, host_url, range[LOWER_ENDPOINT], range[UPPER_ENDPOINT])
+		request = "GET {} HTTP/1.1\r\nHost: {}\r\nRange: bytes={}-{}\r\n\r\n".format(directory, host_url, ranges[LOWER_ENDPOINT], ranges[UPPER_ENDPOINT])
 		file_socket.sendall(request.encode())  
 		response = file_socket.recv(16384).decode()
 
-		print("{}. {} (range = {}-{}) is downloaded".format(idx, url, range[LOWER_ENDPOINT], range[UPPER_ENDPOINT]))
+		l_content_rng, u_content_rng = get_content_range(response)
+
+		print("{}. {} (range = {}-{}) is downloaded".format(idx, url, l_content_rng, u_content_rng))
 
 		with open(filename, "w") as file:
-			file.write(response)
+			obj = get_object(response)
+			file.write(obj)
+	else:
+		request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
+		file_socket.sendall(request.encode())  
+		response = file_socket.recv(16384).decode()
+
+		print("{}. {} (size = {}) is downloaded".format(idx, url, content_length))
+
+		with open(filename, "w") as file:
+			obj = get_object(response)
+			file.write(obj)
+
+
 
 
 
