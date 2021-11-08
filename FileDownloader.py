@@ -7,6 +7,7 @@ def get_status_code(response):
 	stat_code_phrase = status_line[status_line.find(" ")+1:]
 	return stat_code_phrase
 
+
 def get_content_length(response):
 	response_lines = response.split("\r\n")
 	for line in response_lines:
@@ -14,7 +15,8 @@ def get_content_length(response):
 			content_length = int(line.split(' ')[1])
 			return content_length
 
-
+def get_directory(url):
+	return url[url.find('/'):]
 
 index_file = sys.argv[1]
 range_exists = False
@@ -41,7 +43,7 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 s.connect((host_url, 80))
 
-directory = index_file[index_file.find('/'):]
+directory = get_directory(index_file)
 # print("directory:", directory)
 
 request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
@@ -84,6 +86,7 @@ s.close()
 for idx, url in enumerate(file_urls, 1):
 	file_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	host_url = url.split("/")[0]
+	filename = url.split("/")[-1]
 	file_socket.connect((host_url, 80))
 
 	directory = url[url.find('/'):]
@@ -104,6 +107,19 @@ for idx, url in enumerate(file_urls, 1):
 		if content_length < range[LOWER_ENDPOINT]:
 			print("{}. {} (size = {}) is not downloaded".format(idx, url, content_length))
 			continue
+
+		directory = get_directory(url)
+		request = "GET {} HTTP/1.1\r\nHost: {}\r\nRange: bytes={}-{}\r\n\r\n".format(directory, host_url, range[LOWER_ENDPOINT], range[UPPER_ENDPOINT])
+		file_socket.sendall(request.encode())  
+		response = file_socket.recv(16384).decode()
+
+		print("{}. {} (range = {}-{}) is downloaded".format(idx, url, range[LOWER_ENDPOINT], range[UPPER_ENDPOINT]))
+
+		with open(filename, "w") as file:
+			file.write(response)
+
+
+
 
 		
 
