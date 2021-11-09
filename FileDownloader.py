@@ -1,6 +1,7 @@
 import socket
 import sys
 
+# returns the status code from a given HTTP response message
 def get_status_code(response):
 	response_lines = response.split("\r\n")
 	status_line = response_lines[0]
@@ -8,6 +9,21 @@ def get_status_code(response):
 	return stat_code_phrase
 
 
+'''
+Base ceil power of 2 will be 4096 as we need to include header information
+even if we do not have any object. Then, as we need more space to store
+header in addition to the object, I simply multiply the ceil with 2.
+'''
+def ceil_power_2(length):
+	ceil_pow = 4096
+	while ceil_pow < length:
+		ceil_pow *= 2
+
+	ceil_pow *= 2
+	return ceil_pow
+
+
+# returns the content length from a given HTTP response message
 def get_content_length(response):
 	response_lines = response.split("\r\n")
 	for line in response_lines:
@@ -16,6 +32,15 @@ def get_content_length(response):
 			return content_length
 
 
+# returns the buffer size from a given HTTP response message
+def find_buffer_size(response):
+	content_length = get_content_length(response)
+	buf_size = ceil_power_2(content_length)
+	# print("Content length: {}, Buffer size: {}".format(content_length, buf_size))
+	return buf_size
+
+
+# returns content range from a given HTTP response message
 def get_content_range(response):
 	response_lines = response.split("\r\n")
 	for line in response_lines:
@@ -26,10 +51,12 @@ def get_content_range(response):
 			return int(lower_range), int(upper_range)
 
 
+# returns directory substring from a given URL
 def get_directory(url):
 	return url[url.find('/'):]
 
 
+# returns the object from a 
 def get_object(response):
 	for i in range(len(response) - 4):
 		if response[i:i+4] == "\r\n\r\n":
@@ -65,13 +92,24 @@ s.connect((host_url, 80))
 directory = get_directory(index_file)
 # print("directory:", directory)
 
+
+# add HEAD request here
+
+head_request = "HEAD {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
+
+s.sendall(head_request.encode())
+
+head_response = s.recv(16384).decode()
+
+buffer_size = find_buffer_size(head_response)
+
 request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 
 # print("request:", request)
 
 s.sendall(request.encode())  
 
-response = s.recv(16384).decode()
+response = s.recv(buffer_size).decode()
 
 print("Index file is downloaded")
 
@@ -106,6 +144,8 @@ for idx, url in enumerate(file_urls, 1):
 	file_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	host_url = url.split("/")[0]
 	filename = url.split("/")[-1]
+
+	print(host_url)
 	file_socket.connect((host_url, 80))
 
 	directory = get_directory(url)
@@ -115,11 +155,13 @@ for idx, url in enumerate(file_urls, 1):
 
 	response = file_socket.recv(16384).decode()
 	stat_code_phrase = get_status_code(response)
-	content_length = get_content_length(response)
 
 	if stat_code_phrase != "200 OK":
 		print("{}. {} is not found".format(idx, url))
 		continue
+
+	content_length = get_content_length(response)
+	buffer_size = ceil_power_2(content_length)
 
 	if range_exists:
 		if content_length < ranges[LOWER_ENDPOINT]:
@@ -128,7 +170,7 @@ for idx, url in enumerate(file_urls, 1):
 
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\nRange: bytes={}-{}\r\n\r\n".format(directory, host_url, ranges[LOWER_ENDPOINT], ranges[UPPER_ENDPOINT])
 		file_socket.sendall(request.encode())  
-		response = file_socket.recv(16384).decode()
+		response = file_socket.recv(buffer_size).decode()
 
 		l_content_rng, u_content_rng = get_content_range(response)
 
@@ -140,7 +182,7 @@ for idx, url in enumerate(file_urls, 1):
 	else:
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 		file_socket.sendall(request.encode())  
-		response = file_socket.recv(16384).decode()
+		response = file_socket.recv(buffer_size).decode()
 
 		print("{}. {} (size = {}) is downloaded".format(idx, url, content_length))
 
@@ -148,24 +190,6 @@ for idx, url in enumerate(file_urls, 1):
 			obj = get_object(response)
 			file.write(obj)
 
-
-
-
-
-
-		
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	file_socket.shutdown(socket.SHUT_RDWR)
+	file_socket.close()
 
