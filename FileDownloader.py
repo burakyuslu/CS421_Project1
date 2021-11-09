@@ -61,7 +61,7 @@ def get_directory(url):
 def get_object(response):
 	idx = response.index("\r\n\r\n")
 	return response[idx+4:]
-			
+
 
 index_file = sys.argv[1]
 range_exists = False
@@ -70,7 +70,7 @@ LOWER_ENDPOINT = 0
 UPPER_ENDPOINT = 1
 
 # get host URL from the index URL
-host_url = index_file.split("/")[0] 
+host_url = index_file.split("/")[0]
 print("URL of the index file: {}".format(index_file))
 
 # get arguments from the command line
@@ -111,7 +111,7 @@ request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 
 # print("request:", request)
 
-s.sendall(request.encode())  
+s.sendall(request.encode())
 
 response = s.recv(buffer_size).decode()
 
@@ -125,7 +125,7 @@ stat_code_phrase = get_status_code(response)
 
 if stat_code_phrase != "200 OK":
 	print("Error")
-	print("Status line:", status_line)
+	print("Status line:", stat_code_phrase)
 	print("Exiting!")
 	sys.exit()
 
@@ -159,7 +159,7 @@ for idx, url in enumerate(file_urls, 1):
 
 	# send HEAD request to check the range constraints
 	request = "HEAD {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
-	file_socket.sendall(request.encode())  
+	file_socket.sendall(request.encode())
 
 	response = file_socket.recv(16384).decode()
 	stat_code_phrase = get_status_code(response)
@@ -181,7 +181,7 @@ for idx, url in enumerate(file_urls, 1):
 
 		# as range exists, we send request with the Range field in the header
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\nRange: bytes={}-{}\r\n\r\n".format(directory, host_url, ranges[LOWER_ENDPOINT], ranges[UPPER_ENDPOINT])
-		file_socket.sendall(request.encode())  
+		file_socket.sendall(request.encode())
 		response = file_socket.recv(buffer_size).decode()
 
 		l_content_rng, u_content_rng = get_content_range(response)
@@ -195,7 +195,7 @@ for idx, url in enumerate(file_urls, 1):
 	else:
 		# as range does not exist, we send request without the Range field in the header
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
-		file_socket.sendall(request.encode())  
+		file_socket.sendall(request.encode())
 		response = file_socket.recv(buffer_size).decode()
 
 		print("{}. {} (size = {}) is downloaded".format(idx, url, content_length))
