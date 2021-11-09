@@ -94,7 +94,6 @@ s.connect((host_url, 80))
 directory = get_directory(index_file)
 # print("directory:", directory)
 
-
 # add HEAD request here
 
 # send an additional HEAD request to determine the buffer size for the object
@@ -103,6 +102,16 @@ head_request = "HEAD {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url
 s.sendall(head_request.encode())
 
 head_response = s.recv(16384).decode()
+
+# check the status code
+stat_code_phrase = get_status_code(head_response)
+
+if stat_code_phrase != "200 OK":
+	print("Error")
+	print("Status line:", stat_code_phrase)
+	print("Exiting!")
+	sys.exit()
+
 
 buffer_size = find_buffer_size(head_response)
 
