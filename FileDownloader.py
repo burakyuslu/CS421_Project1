@@ -63,6 +63,30 @@ def get_object(response):
 	return response[idx+4:]
 
 
+def recv_all(sock, head_response):
+    data = bytearray()
+    n = get_content_length(head_response) + len(head_response)
+    while len(data) < n:
+        packet = sock.recv(8192)
+        if not packet:
+            return None
+        data.extend(packet)
+    return data
+
+def recv_all_range(sock, head_response, lrange, urange):
+	n = (urange - lrange) + len(head_response)
+	if get_content_length(head_response) < (urange - lrange):
+		n = get_content_length(head_response) + len(head_response) - lrange
+	data = bytearray()
+	while len(data) < n:
+		packet = sock.recv(8192)
+		if not packet:
+			return None
+		data.extend(packet)
+	return data
+
+
+
 index_file = sys.argv[1]
 range_exists = False
 ranges = None
@@ -122,7 +146,8 @@ request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 
 s.sendall(request.encode())
 
-response = s.recv(buffer_size).decode()
+response = recv_all(s, head_response).decode()
+# response = s.recv(buffer_size).decode()
 
 print("Index file is downloaded")
 
@@ -171,6 +196,7 @@ for idx, url in enumerate(file_urls, 1):
 	file_socket.sendall(request.encode())
 
 	response = file_socket.recv(16384).decode()
+
 	stat_code_phrase = get_status_code(response)
 
 
@@ -191,7 +217,9 @@ for idx, url in enumerate(file_urls, 1):
 		# as range exists, we send request with the Range field in the header
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\nRange: bytes={}-{}\r\n\r\n".format(directory, host_url, ranges[LOWER_ENDPOINT], ranges[UPPER_ENDPOINT])
 		file_socket.sendall(request.encode())
-		response = file_socket.recv(buffer_size).decode()
+
+		response = recv_all_range(file_socket, response, ranges[LOWER_ENDPOINT], ranges[UPPER_ENDPOINT]).decode()
+		# response = file_socket.recv(buffer_size).decode()
 
 		l_content_rng, u_content_rng = get_content_range(response)
 
@@ -205,7 +233,9 @@ for idx, url in enumerate(file_urls, 1):
 		# as range does not exist, we send request without the Range field in the header
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 		file_socket.sendall(request.encode())
-		response = file_socket.recv(buffer_size).decode()
+
+		response = recv_all(file_socket, response).decode()
+		# response = file_socket.recv(buffer_size).decode()
 
 		print("{}. {} (size = {}) is downloaded".format(idx, url, content_length))
 
@@ -213,7 +243,4 @@ for idx, url in enumerate(file_urls, 1):
 		with open(filename, "w") as file:
 			obj = get_object(response)
 			file.write(obj)
-
-	file_socket.shutdown(socket.SHUT_RDWR)
-	file_socket.close()
 
