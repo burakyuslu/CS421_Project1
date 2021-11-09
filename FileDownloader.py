@@ -1,5 +1,6 @@
 import socket
 import sys
+import re
 
 # returns the status code from a given HTTP response message
 def get_status_code(response):
@@ -56,11 +57,10 @@ def get_directory(url):
 	return url[url.find('/'):]
 
 
-# returns the object from a 
+# returns the object from a response message
 def get_object(response):
-	for i in range(len(response) - 4):
-		if response[i:i+4] == "\r\n\r\n":
-			return response[i+4:]
+	idx = response.index("\r\n\r\n")
+	return response[idx+4:]
 			
 
 index_file = sys.argv[1]
@@ -69,9 +69,11 @@ ranges = None
 LOWER_ENDPOINT = 0
 UPPER_ENDPOINT = 1
 
+# get host URL from the index URL
 host_url = index_file.split("/")[0] 
 print("URL of the index file: {}".format(index_file))
 
+# get arguments from the command line
 if len(sys.argv) == 3:
 	range_exists = True
 	ranges = sys.argv[2].split("-")
@@ -84,7 +86,7 @@ elif len(sys.argv) != 2:
 else:
 	print("No range is given")
 
-
+# instantiate the socket and connect to host
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 s.connect((host_url, 80))
@@ -95,6 +97,7 @@ directory = get_directory(index_file)
 
 # add HEAD request here
 
+# send an additional HEAD request to determine the buffer size for the object
 head_request = "HEAD {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 
 s.sendall(head_request.encode())
@@ -103,6 +106,7 @@ head_response = s.recv(16384).decode()
 
 buffer_size = find_buffer_size(head_response)
 
+# send GET request to retrieve the index file
 request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 
 # print("request:", request)
@@ -116,6 +120,7 @@ print("Index file is downloaded")
 # print("Response")
 # print(response)
 
+# check the status code
 stat_code_phrase = get_status_code(response)
 
 if stat_code_phrase != "200 OK":
@@ -129,6 +134,7 @@ response_lines = response.split("\r\n")
 # print("Response lines")
 # print(response_lines)
 
+# get file URLs from the index file
 file_urls = response_lines[-1].split("\n")
 file_urls = [url for url in file_urls if len(url) != 0]
 
@@ -136,30 +142,35 @@ file_urls = [url for url in file_urls if len(url) != 0]
 # print(repr(file_urls))
 print("There are {} files in the index".format(len(file_urls)))
 
+# close the initial socket
 s.shutdown(socket.SHUT_RDWR)
 s.close()
 
 
 for idx, url in enumerate(file_urls, 1):
+	# create new socket for each URL in the index file
 	file_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	host_url = url.split("/")[0]
 	filename = url.split("/")[-1]
 
-	print(host_url)
 	file_socket.connect((host_url, 80))
 
 	directory = get_directory(url)
 
+	# send HEAD request to check the range constraints
 	request = "HEAD {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 	file_socket.sendall(request.encode())  
 
 	response = file_socket.recv(16384).decode()
 	stat_code_phrase = get_status_code(response)
 
+
+	# check the status code
 	if stat_code_phrase != "200 OK":
 		print("{}. {} is not found".format(idx, url))
 		continue
 
+	# determine the buffer size
 	content_length = get_content_length(response)
 	buffer_size = ceil_power_2(content_length)
 
@@ -168,6 +179,7 @@ for idx, url in enumerate(file_urls, 1):
 			print("{}. {} (size = {}) is not downloaded".format(idx, url, content_length))
 			continue
 
+		# as range exists, we send request with the Range field in the header
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\nRange: bytes={}-{}\r\n\r\n".format(directory, host_url, ranges[LOWER_ENDPOINT], ranges[UPPER_ENDPOINT])
 		file_socket.sendall(request.encode())  
 		response = file_socket.recv(buffer_size).decode()
@@ -176,16 +188,19 @@ for idx, url in enumerate(file_urls, 1):
 
 		print("{}. {} (range = {}-{}) is downloaded".format(idx, url, l_content_rng, u_content_rng))
 
+		# write the object to a file
 		with open(filename, "w") as file:
 			obj = get_object(response)
 			file.write(obj)
 	else:
+		# as range does not exist, we send request without the Range field in the header
 		request = "GET {} HTTP/1.1\r\nHost: {}\r\n\r\n".format(directory, host_url)
 		file_socket.sendall(request.encode())  
 		response = file_socket.recv(buffer_size).decode()
 
 		print("{}. {} (size = {}) is downloaded".format(idx, url, content_length))
 
+		# write the object to a file
 		with open(filename, "w") as file:
 			obj = get_object(response)
 			file.write(obj)
