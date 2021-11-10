@@ -1,6 +1,6 @@
 import socket
 import sys
-import re
+import time
 
 # returns the status code from a given HTTP response message
 def get_status_code(response):
@@ -61,33 +61,90 @@ def get_directory(url):
 
 # returns the object from a response message
 def get_object(response):
-	idx = response.index("\r\n\r\n")
+	idx = response.find("\r\n\r\n")
+	return response[idx+4:]
+
+def get_object_all(response):
+	idx = response.find("\r\n\r\n")
+	if idx == -1:
+		return ""
 	return response[idx+4:]
 
 
-def recv_all(sock, head_response):
-    data = bytearray()
-    n = get_content_length(head_response) + len(head_response)
-    while len(data) < n:
-        packet = sock.recv(8192)
-        if not packet:
-            return None
-        data.extend(packet)
-    return data
-
-def recv_all_range(sock, head_response, lrange, urange):
-	n = (urange - lrange + 1) + len(head_response)
-	if get_content_length(head_response) < (urange - lrange + 1):
-		n = get_content_length(head_response) + len(head_response) - lrange
+'''
+def recv_all(sock, response):
+	timeout = 2
+	sock.setblocking(False)
 	data = bytearray()
-	while len(data) < n:
+	begin = time.time()
+	content_length = get_content_length(response)
+	while 1:
+		if data and time.time() - begin > timeout:
+			break
+		elif time.time() - begin > timeout * 2:
+			break
+		try:
+			packet = sock.recv(8192)
+			if packet:
+				data.extend(packet)
+				begin = time.time()
+			else:
+				time.sleep(0.2)
+		except:
+			pass
+		if len(get_object(data.decode())) ==  content_length:
+			break
+	return data
+
+def recv_all_range(sock, response, lrange, urange):
+	timeout = 2
+	sock.setblocking(False)
+	data = bytearray()
+	begin = time.time()
+	content_length = get_content_length(response)
+	while 1:
+		if data and time.time() - begin > timeout:
+			break
+		elif time.time() - begin > timeout * 2:
+			break
+		try:
+			packet = sock.recv(8192)
+			if packet:
+				data.extend(packet)
+				begin = time.time()
+			else:
+				time.sleep(0.2)
+		except:
+			pass
+		if len(get_object(data.decode())) ==  content_length:
+			break
+	return data
+'''
+
+
+def recv_all(sock, head_response):
+	data = bytearray()
+	content_length = get_content_length(head_response)
+	n = content_length + len(head_response)
+	while len(get_object_all(data.decode())) != content_length:
 		packet = sock.recv(8192)
 		if not packet:
 			return None
 		data.extend(packet)
 	return data
 
-
+def recv_all_range(sock, head_response, lrange, urange):
+	n = (urange - lrange + 1)
+	content_length = get_content_length(head_response)
+	if content_length < (urange - lrange + 1):
+		n = content_length - lrange
+	data = bytearray()
+	while len(get_object_all(data.decode())) != n:
+		packet = sock.recv(8192)
+		if not packet:
+			return None
+		data.extend(packet)
+	return data
 
 index_file = sys.argv[1]
 range_exists = False
