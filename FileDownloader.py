@@ -76,8 +76,8 @@ def recv_all(sock, head_response):
     return data
 
 def recv_all_range(sock, head_response, lrange, urange):
-	n = (urange - lrange) + len(head_response)
-	if get_content_length(head_response) < (urange - lrange):
+	n = (urange - lrange + 1) + len(head_response)
+	if get_content_length(head_response) < (urange - lrange + 1):
 		n = get_content_length(head_response) + len(head_response) - lrange
 	data = bytearray()
 	while len(data) < n:
