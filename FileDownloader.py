@@ -121,7 +121,6 @@ def recv_all_range(sock, response, lrange, urange):
 	return data
 '''
 
-
 def recv_all(sock, head_response):
 	data = bytearray()
 	content_length = get_content_length(head_response)
@@ -132,6 +131,7 @@ def recv_all(sock, head_response):
 			return None
 		data.extend(packet)
 	return data
+	
 
 def recv_all_range(sock, head_response, lrange, urange):
 	n = (urange - lrange + 1)
@@ -145,6 +145,7 @@ def recv_all_range(sock, head_response, lrange, urange):
 			return None
 		data.extend(packet)
 	return data
+
 
 index_file = sys.argv[1]
 range_exists = False
@@ -268,7 +269,7 @@ for idx, url in enumerate(file_urls, 1):
 	content_length = get_content_length(response)
 
 	if range_exists:
-		if content_length < ranges[LOWER_ENDPOINT]:
+		if content_length - 1 < ranges[LOWER_ENDPOINT]:
 			print("{}. {} (size = {}) is not downloaded".format(idx, url, content_length))
 			continue
 
