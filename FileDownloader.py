@@ -31,6 +31,7 @@ def get_content_length(response):
 		if line.split(' ')[0] == "Content-Length:":
 			content_length = int(line.split(' ')[1])
 			return content_length
+	return 0
 
 
 # returns the buffer size from a given HTTP response message
@@ -50,6 +51,7 @@ def get_content_range(response):
 			lower_range, upper_range = content_range.split('-')
 			upper_range = upper_range.split('/')[0]
 			return int(lower_range), int(upper_range)
+	return 0, 0
 
 
 # returns directory substring from a given URL
@@ -207,7 +209,6 @@ for idx, url in enumerate(file_urls, 1):
 
 	# determine the buffer size
 	content_length = get_content_length(response)
-	buffer_size = ceil_power_2(content_length)
 
 	if range_exists:
 		if content_length < ranges[LOWER_ENDPOINT]:
