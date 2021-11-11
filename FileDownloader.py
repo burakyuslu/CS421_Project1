@@ -71,14 +71,13 @@ def get_object_all(response):
 	return response[idx+4:]
 
 
-'''
 def recv_all(sock, response):
 	timeout = 2
 	sock.setblocking(False)
 	data = bytearray()
 	begin = time.time()
 	content_length = get_content_length(response)
-	while 1:
+	while True:
 		if data and time.time() - begin > timeout:
 			break
 		elif time.time() - begin > timeout * 2:
@@ -92,17 +91,21 @@ def recv_all(sock, response):
 				time.sleep(0.2)
 		except:
 			pass
-		if len(get_object(data.decode())) ==  content_length:
+		if len(get_object_all(data.decode())) == content_length:
 			break
 	return data
 
 def recv_all_range(sock, response, lrange, urange):
-	timeout = 2
+	n = (urange - lrange + 1)
+	content_length = get_content_length(head_response)
+	if content_length < (urange - lrange + 1):
+		n = content_length - lrange
+
+	timeout = 1
 	sock.setblocking(False)
 	data = bytearray()
 	begin = time.time()
-	content_length = get_content_length(response)
-	while 1:
+	while True:
 		if data and time.time() - begin > timeout:
 			break
 		elif time.time() - begin > timeout * 2:
@@ -116,9 +119,10 @@ def recv_all_range(sock, response, lrange, urange):
 				time.sleep(0.2)
 		except:
 			pass
-		if len(get_object(data.decode())) ==  content_length:
+		if len(get_object_all(data.decode())) == n:
 			break
 	return data
+
 '''
 
 def recv_all(sock, head_response):
@@ -131,7 +135,7 @@ def recv_all(sock, head_response):
 			return None
 		data.extend(packet)
 	return data
-	
+
 
 def recv_all_range(sock, head_response, lrange, urange):
 	n = (urange - lrange + 1)
@@ -145,7 +149,7 @@ def recv_all_range(sock, head_response, lrange, urange):
 			return None
 		data.extend(packet)
 	return data
-
+'''
 
 index_file = sys.argv[1]
 range_exists = False
