@@ -72,7 +72,7 @@ def get_object_all(response):
 
 
 def recv_all(sock, response):
-	timeout = 2
+	timeout = 1
 	sock.setblocking(False)
 	data = bytearray()
 	begin = time.time()
